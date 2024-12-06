@@ -33,11 +33,10 @@ class Crawler:
 
         countries_page_links = starting_page_real.find('table').find_all('a', href=re.compile('^/countries/'))
         countries_links = [self.__get_full_url(host, link) for link in countries_page_links]
-        
-        countries_pages = [BeautifulSoup(RequestsHandler.get(country_link), 'html.parser')
-                           for country_link in countries_links]
 
-        for country_page in countries_pages:
+        for country_link in countries_links:
+            country_page = BeautifulSoup(RequestsHandler.get(country_link), 'html.parser')
+
             country_page_links = country_page.find('table').find_all('a', href=re.compile('^/breaks/'))
             breaks_links = [self.__get_full_url(host, link) for link in country_page_links]
 
