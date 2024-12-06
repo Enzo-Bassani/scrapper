@@ -2,6 +2,7 @@ import requests
 import time
 import threading
 import os
+import logger
 
 initialTime = time.time()
 
@@ -46,7 +47,7 @@ class RequestsHandler:
 
         with RequestsHandler.lock:  # Ensure only one thread can make a request at a time
             RequestsHandler.__wait_for_rate_limit()  # Ensure rate limit is respected
-            print(f"Getting url {url}\nTime: {time.time() - initialTime}")
+            logger.logger.info(f"Getting url {url}\nTime: {time.time() - initialTime}")
             response = requests.get(url)
 
             # Update the time of the last request after the request is made
