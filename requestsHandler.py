@@ -22,7 +22,12 @@ class RequestsHandler:
             time.sleep(time_to_wait)
 
     @staticmethod
+    def __get_cache_key(url: str) -> str:
+        return url + '.file'
+
+    @staticmethod
     def __get_cached(url: str):
+        url = RequestsHandler.__get_cache_key(url)
         if os.path.exists(url):
             with open(url, 'r') as file:
                 return file.read()
@@ -30,7 +35,10 @@ class RequestsHandler:
 
     @staticmethod
     def __update_cache(url: str, value):
+        url = RequestsHandler.__get_cache_key(url)
+
         dir_name, file_name = os.path.split(url)
+
         os.makedirs(dir_name, exist_ok=True)
         with open(url, 'w') as file:
             return file.write(value)
