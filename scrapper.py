@@ -1,3 +1,4 @@
+from datetime import datetime, timedelta
 from bs4 import BeautifulSoup
 import re
 import json
@@ -10,6 +11,7 @@ import sys
 import os
 
 search_rotate_value = re.compile(r"rotate\((\-?\d+(\.\d+)?)\)")
+time_date_regex = re.compile(r"emitido (\d{1,2} \w{2}).*(\d{2} \w{3} \d{4})")
 
 
 class Scrapper:
@@ -21,15 +23,21 @@ class Scrapper:
 
         self.crawler = crawler
 
+        self.is_first_output_appending = True
+
     def append_output(self, value):
+        if self.is_first_output_appending:
+            self.is_first_output_appending = False
+        else:
+            self.output_file.write(',\n')
+
         json.dump(value, self.output_file, indent=4)
-        self.output_file.write(',\n')
 
     def close_output(self):
         self.output_file.write('\n]')
         self.output_file.close()
 
-    def scrap(self):
+    def scrap(self, limit):
         response = []
 
         while True:
@@ -48,69 +56,102 @@ class Scrapper:
                 ###### GUIDE HEADER ######
                 self.__scrap_guide_header(main_page, entry)
 
-                ###### BASIC FORECAST ######
-                self.__scrap_basic_forecast(main_page, entry)
-
                 ###### FORECAST ######
-                # self.__scrap_forecast(forecast_page, entry)
+                self.__scrap_forecast(forecast_page, entry)
 
                 self.append_output(entry)
                 logger.logger.info(json.dumps(entry, indent=4))
                 response.append(entry)
 
+                if limit != 0 and len(response) >= limit:
+                    break
+
             except Exception as e:
-                logger.error(traceback.format_exc())
+                logger.logger.error(traceback.format_exc())
 
         self.close_output()
         return response
-    
-    # def __scrap_forecast(self, page: BeautifulSoup, entry: dict[str]):
-    #     table = page.find('div', class_=['forecast-table__scroll-container']).table.find_all('tr')
-        
 
+    def __scrap_forecast(self, page: BeautifulSoup, break_entry: dict[str]):
+        table = page.find('table').find_all('tr')
 
-    #     times = [entry.text for entry in table[1].find_all('td')]
+        # Get issued date
+        datetime_text = page.find('div', class_='break-header-dynamic__issued').text
+        datetime_match = time_date_regex.search(datetime_text)
+        time_str, date_str = datetime_match.group(1), datetime_match.group(2)  # e.g., "08 Dec 2024"
+        issued_datetime = datetime.strptime(f"{date_str} {time_str}", "%d %b %Y %I %p")
 
-    #     # Wave(m) row
-    #     wave_info_by_time = [wave_info.div for wave_info in table[2].find_all('td')]
-    #     entry['wave'] = {}
-    #     for time, wave_info in zip(times, wave_info_by_time):
-    #         if wave_info is None:
-    #             entry['wave'][time] = {'cardinal_direction': '-', 'degrees': '-', 'size': '-'}
-    #             continue
+        # Time row
+        periods = [period.text for period in page.find('table').find('tr', attrs={"data-row-name": "time"}).find_all('td')]
+        datetimes = []
+        curr_datetime = issued_datetime
+        for period in periods:
+            advance_day = False
+            match period:
+                case 'manhã':
+                    curr_datetime = curr_datetime.replace(hour=6)
+                case 'tarde':
+                    curr_datetime = curr_datetime.replace(hour=12)
+                case 'noite':
+                    curr_datetime = curr_datetime.replace(hour=18)
+                    advance_day = True
 
-    #         entry['wave'][time] = {
-    #             'cardinal_direction': wave_info.div.text,
-    #             'degrees': float(search_rotate_value.search(wave_info.svg.g['transform']).group(1)),
-    #             'size': float(wave_info.svg.find('text').text)
-    #         }
+            datetimes.append(curr_datetime.isoformat())
+            if advance_day:
+                curr_datetime += timedelta(days=1)
 
-    #     # Período (s) row
-    #     periodos_by_time = []
-    #     for periodo in table[3].find_all('td'):
-    #         periodo_text = periodo.text.strip()
-    #         periodos_by_time.append(periodo_text if periodo_text == '-' else int(periodo_text))
-    #     entry['periodo'] = {}
-    #     for time, periodo in zip(times, periodos_by_time):
-    #         entry['periodo'][time] = periodo
+        # Wave(m) row
+        wave_info_by_date = [wave_info.div for wave_info in table[4].find_all('td')]
+        entries = [{} for _ in range(len(wave_info_by_date))]
+        for entry, wave_info in zip(entries, wave_info_by_date):
+            if wave_info is None:
+                scrapped = {'wave_cardinal_direction': '-', 'wave_degrees': '-', 'wave_size': '-'}
+            else:
+                scrapped = {
+                    'wave_cardinal_direction': wave_info.div.text,
+                    'wave_degrees': float(search_rotate_value.search(wave_info.svg.g['transform']).group(1)),
+                    'wave_size': float(wave_info.svg.find('text').text)
+                }
+            entry.update(scrapped)
 
-    #     # Vento(km/h) row
-    #     wind_by_time = table[4].find_all('td')
-    #     entry['wind'] = {}
-    #     for time, wind_info in zip(times, wind_by_time):
-    #         entry['wind'][time] = {
-    #             'degrees': float(search_rotate_value.search(wind_info.div.svg.g['transform']).group(1)),
-    #             'speed': float(wind_info.div.svg.find('text').text)
-    #         }
+        # Período (s) row
+        periodo_by_date = table[5].find_all('td')
+        for entry, periodo in zip(entries, periodo_by_date):
+            periodo_text = periodo.text.strip()
+            entry['periodo'] = periodo_text if periodo_text == '-' else int(periodo_text)
 
-    #     # Estado do vento row
-    #     estados_by_time = [estado.text for estado in table[5].find_all('td')]
-    #     entry['estado'] = {}
-    #     for time, estado in zip(times, estados_by_time):
-    #         entry['estado'][time] = estado
+        # Energy. row
+        energy_by_time = [energy.text for energy in table[7].find_all('td')]
+        for entry, energy in zip(entries, energy_by_time):
+            entry['energy'] = int(energy)
 
+        # Vento(km/h) row
+        wind_by_date = table[8].find_all('td')
+        for entry, wind_info in zip(entries, wind_by_date):
+            scrapped = {
+                'wind_degrees': float(search_rotate_value.search(wind_info.div.svg.g['transform']).group(1)),
+                'wind_speed': float(wind_info.div.svg.find('text').text)
+            }
+            entry.update(scrapped)
 
+        # Estado do vento row
+        estados_by_time = [estado.text for estado in table[9].find_all('td')]
+        for entry, estado in zip(entries, estados_by_time):
+            entry['wind_state'] = estado
 
+        # Temp. row
+        temp_by_time = [temp.text for temp in table[18].find_all('td')]
+        for entry, temp in zip(entries, temp_by_time):
+            entry['temp'] = int(temp)
+
+        # Feels. row
+        feels_by_time = [feels.text for feels in table[19].find_all('td')]
+        for entry, feels in zip(entries, feels_by_time):
+            entry['feels'] = int(feels)
+
+        break_entry['forecast'] = {}
+        for time, forecast_entry in zip(datetimes, entries):
+            break_entry['forecast'][time] = forecast_entry
 
     def __scrap_guide_header(self, page: BeautifulSoup, entry: dict[str]):
         guide_header = page.find('div', class_='guide-header__spotid')
@@ -124,48 +165,3 @@ class Scrapper:
         entry['rating'] = int(rating.span.text)
         entry['reliability'] = reliability.text
         entry['temperature'] = float(temperature.div.span.text)
-
-    def __scrap_basic_forecast(self, page: BeautifulSoup, entry: dict[str]):
-        table = page.find('div', class_=['forecast_upcoming forecast_upcoming--newhead',
-                            'forecast-cta__current-forecast', 'forecasts forecast-cta']).table.find_all('tr')
-
-        times = [entry.text for entry in table[1].find_all('td')]
-
-        # Wave(m) row
-        wave_info_by_time = [wave_info.div for wave_info in table[2].find_all('td')]
-        entry['wave'] = {}
-        for time, wave_info in zip(times, wave_info_by_time):
-            if wave_info is None:
-                entry['wave'][time] = {'cardinal_direction': '-', 'degrees': '-', 'size': '-'}
-                continue
-
-            entry['wave'][time] = {
-                'cardinal_direction': wave_info.div.text,
-                'degrees': float(search_rotate_value.search(wave_info.svg.g['transform']).group(1)),
-                'size': float(wave_info.svg.find('text').text)
-            }
-
-        # Período (s) row
-        periodos_by_time = []
-        for periodo in table[3].find_all('td'):
-            periodo_text = periodo.text.strip()
-            periodos_by_time.append(periodo_text if periodo_text == '-' else int(periodo_text))
-        entry['periodo'] = {}
-        for time, periodo in zip(times, periodos_by_time):
-            entry['periodo'][time] = periodo
-
-        # Vento(km/h) row
-        wind_by_time = table[4].find_all('td')
-        entry['wind'] = {}
-        for time, wind_info in zip(times, wind_by_time):
-            entry['wind'][time] = {
-                'degrees': float(search_rotate_value.search(wind_info.div.svg.g['transform']).group(1)),
-                'speed': float(wind_info.div.svg.find('text').text)
-            }
-
-        # Estado do vento row
-        estados_by_time = [estado.text for estado in table[5].find_all('td')]
-        entry['estado'] = {}
-        for time, estado in zip(times, estados_by_time):
-            entry['estado'][time] = estado
-

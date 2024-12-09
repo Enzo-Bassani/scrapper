@@ -3,15 +3,16 @@ from scrapper import Scrapper
 import sys
 import logger
 
+
 def main():
-    output_file, log_file = sys.argv[1], sys.argv[2]
+    limit, output_file, log_file = int(sys.argv[1]), sys.argv[2], sys.argv[3]
     logger.initLogger(log_file)
 
     crawler = Crawler()
     scrapper = Scrapper(crawler, output_file)
 
     crawler.crawl()
-    result = scrapper.scrap()
+    result = scrapper.scrap(limit)
 
 
 main()
