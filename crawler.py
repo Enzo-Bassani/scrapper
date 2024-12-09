@@ -10,8 +10,9 @@ host = 'pt.surf-forecast.com'
 
 
 @dataclass
-class Page:
-    text: str
+class Break:
+    main_page: str
+    forecast_page: str
     url: str
 
 
@@ -41,8 +42,11 @@ class Crawler:
             breaks_links = [self.__get_full_url(host, link) for link in country_page_links]
 
             for break_link in breaks_links:
-                break_page = RequestsHandler.get(break_link)
-                page = Page(break_page, break_link)
+                break_forecast_link = break_link + '/forecasts/latest/six_day'
+                break_main_page = RequestsHandler.get(break_link)
+                break_forecast_page = RequestsHandler.get(break_forecast_link)
+
+                page = Break(break_main_page, break_forecast_page, break_link)
                 self.__buffer_append(page)
 
         # Free all threads waiting for the crawler.
@@ -51,14 +55,14 @@ class Crawler:
     def __get_full_url(self, host, url):
         return 'https://' + host + url['href']
 
-    def __buffer_append(self, page: Page):
+    def __buffer_append(self, page: Break):
         with self.breaks_buffer_lock:
             self.breaks_buffer.append(page)
 
         # Tell consumer threads that there is content to be consumed.
         self.breaks_buffer_consumer_semaphore.release()
 
-    def pop(self) -> tuple[Page, bool]:
+    def pop(self) -> tuple[Break, bool]:
         # Wait for content to be added to the buffer.
         self.breaks_buffer_consumer_semaphore.acquire()
 

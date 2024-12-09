@@ -34,21 +34,25 @@ class Scrapper:
 
         while True:
             try:
-                page_crawled, empty = self.crawler.pop()
+                break_, empty = self.crawler.pop()
                 if empty:
                     break
 
-                page = BeautifulSoup(page_crawled.text, 'html.parser')
+                main_page = BeautifulSoup(break_.main_page, 'html.parser')
+                forecast_page = BeautifulSoup(break_.forecast_page, 'html.parser')
                 entry = {}
 
-                logger.logger.info(f'Scrapping {page_crawled.url}')
-                entry['url'] = page_crawled.url
+                logger.logger.info(f'Scrapping {break_.url}')
+                entry['url'] = break_.url
 
                 ###### GUIDE HEADER ######
-                self.__scrap_guide_header(page, entry)
+                self.__scrap_guide_header(main_page, entry)
+
+                ###### BASIC FORECAST ######
+                self.__scrap_basic_forecast(main_page, entry)
 
                 ###### FORECAST ######
-                self.__scrap_forecast(page, entry)
+                # self.__scrap_forecast(forecast_page, entry)
 
                 self.append_output(entry)
                 logger.logger.info(json.dumps(entry, indent=4))
@@ -59,6 +63,53 @@ class Scrapper:
 
         self.close_output()
         return response
+    
+    # def __scrap_forecast(self, page: BeautifulSoup, entry: dict[str]):
+    #     table = page.find('div', class_=['forecast-table__scroll-container']).table.find_all('tr')
+        
+
+
+    #     times = [entry.text for entry in table[1].find_all('td')]
+
+    #     # Wave(m) row
+    #     wave_info_by_time = [wave_info.div for wave_info in table[2].find_all('td')]
+    #     entry['wave'] = {}
+    #     for time, wave_info in zip(times, wave_info_by_time):
+    #         if wave_info is None:
+    #             entry['wave'][time] = {'cardinal_direction': '-', 'degrees': '-', 'size': '-'}
+    #             continue
+
+    #         entry['wave'][time] = {
+    #             'cardinal_direction': wave_info.div.text,
+    #             'degrees': float(search_rotate_value.search(wave_info.svg.g['transform']).group(1)),
+    #             'size': float(wave_info.svg.find('text').text)
+    #         }
+
+    #     # Período (s) row
+    #     periodos_by_time = []
+    #     for periodo in table[3].find_all('td'):
+    #         periodo_text = periodo.text.strip()
+    #         periodos_by_time.append(periodo_text if periodo_text == '-' else int(periodo_text))
+    #     entry['periodo'] = {}
+    #     for time, periodo in zip(times, periodos_by_time):
+    #         entry['periodo'][time] = periodo
+
+    #     # Vento(km/h) row
+    #     wind_by_time = table[4].find_all('td')
+    #     entry['wind'] = {}
+    #     for time, wind_info in zip(times, wind_by_time):
+    #         entry['wind'][time] = {
+    #             'degrees': float(search_rotate_value.search(wind_info.div.svg.g['transform']).group(1)),
+    #             'speed': float(wind_info.div.svg.find('text').text)
+    #         }
+
+    #     # Estado do vento row
+    #     estados_by_time = [estado.text for estado in table[5].find_all('td')]
+    #     entry['estado'] = {}
+    #     for time, estado in zip(times, estados_by_time):
+    #         entry['estado'][time] = estado
+
+
 
 
     def __scrap_guide_header(self, page: BeautifulSoup, entry: dict[str]):
@@ -74,7 +125,7 @@ class Scrapper:
         entry['reliability'] = reliability.text
         entry['temperature'] = float(temperature.div.span.text)
 
-    def __scrap_forecast(self, page: BeautifulSoup, entry: dict[str]):
+    def __scrap_basic_forecast(self, page: BeautifulSoup, entry: dict[str]):
         table = page.find('div', class_=['forecast_upcoming forecast_upcoming--newhead',
                             'forecast-cta__current-forecast', 'forecasts forecast-cta']).table.find_all('tr')
 
