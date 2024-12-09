@@ -23,7 +23,7 @@ class RequestsHandler:
 
     @staticmethod
     def __get_cache_key(url: str) -> str:
-        return url + '.file'
+        return url + '.html'
 
     @staticmethod
     def __get_cached(url: str):
