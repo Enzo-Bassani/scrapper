@@ -17,7 +17,7 @@ class Break:
 
 
 class Crawler:
-    def __init__(self) -> None:
+    def __init__(self, limit) -> None:
         self.countries_url = 'https://www.surf-forecast.com/countries'
         self.starting_URL = 'https://pt.surf-forecast.com/countries/Brazil/breaks'
         self.breaks_URLs_queue: list[str] = []
@@ -25,6 +25,8 @@ class Crawler:
         self.breaks_buffer: list[str] = []
         self.breaks_buffer_lock = threading.Lock()
         self.breaks_buffer_consumer_semaphore = threading.Semaphore(0)
+
+        self.limit = limit
 
     def crawl(self):
         threading.Thread(target=self.__crawl).start()
@@ -35,6 +37,7 @@ class Crawler:
         countries_page_links = starting_page_real.find('table').find_all('a', href=re.compile('^/countries/'))
         countries_links = [self.__get_full_url(host, link) for link in countries_page_links]
 
+        count = 0
         for country_link in countries_links:
             country_page = BeautifulSoup(RequestsHandler.get(country_link), 'html.parser')
 
@@ -49,6 +52,14 @@ class Crawler:
                 page = Break(break_main_page, break_forecast_page, break_link)
                 self.__buffer_append(page)
 
+                count += 1
+                if count == self.limit:
+                    self.__close()
+                    return
+
+        self.__close()
+
+    def __close(self):
         # Free all threads waiting for the crawler.
         self.breaks_buffer_consumer_semaphore.release(a_lot)
 

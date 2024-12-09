@@ -9,35 +9,28 @@ import traceback
 import logger
 import sys
 import os
+from tinydb import TinyDB
 
 search_rotate_value = re.compile(r"rotate\((\-?\d+(\.\d+)?)\)")
 time_date_regex = re.compile(r"emitido (\d{1,2} \w{2}).*(\d{2} \w{3} \d{4})")
 
 
 class Scrapper:
-    def __init__(self, crawler: Crawler, output_file_path: str):
-        if os.path.exists(output_file_path):
-            os.remove(output_file_path)
-        self.output_file = open(output_file_path, 'a')
-        self.output_file.write("[\n")
-
+    def __init__(self, crawler: Crawler, output_file_path: str, db):
         self.crawler = crawler
+        self.db = db
 
-        self.is_first_output_appending = True
+    def update_output(self, value):
+        key = value['url'].encode()
+        stored_data_bytes = self.db.get(key)
+        if stored_data_bytes:
+            stored_data: dict[str] = json.loads(stored_data_bytes)
+            stored_data['forecast'].update(value['forecast'])
+            value['forecast'] = stored_data['forecast']
 
-    def append_output(self, value):
-        if self.is_first_output_appending:
-            self.is_first_output_appending = False
-        else:
-            self.output_file.write(',\n')
+        self.db.put(key, json.dumps(value).encode())
 
-        json.dump(value, self.output_file, indent=4)
-
-    def close_output(self):
-        self.output_file.write('\n]')
-        self.output_file.close()
-
-    def scrap(self, limit):
+    def scrap(self):
         response = []
 
         while True:
@@ -59,17 +52,13 @@ class Scrapper:
                 ###### FORECAST ######
                 self.__scrap_forecast(forecast_page, entry)
 
-                self.append_output(entry)
+                self.update_output(entry)
                 logger.logger.info(json.dumps(entry, indent=4))
                 response.append(entry)
-
-                if limit != 0 and len(response) >= limit:
-                    break
 
             except Exception as e:
                 logger.logger.error(traceback.format_exc())
 
-        self.close_output()
         return response
 
     def __scrap_forecast(self, page: BeautifulSoup, break_entry: dict[str]):
