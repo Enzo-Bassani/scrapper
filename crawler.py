@@ -4,6 +4,7 @@ from bs4 import BeautifulSoup
 import re
 from requestsHandler import RequestsHandler
 import threading
+import logger
 
 a_lot = 2**32
 host = 'pt.surf-forecast.com'
@@ -17,12 +18,19 @@ class Break:
 
 
 class Crawler:
-    def __init__(self, output_buffer: Queue[Break], limit) -> None:
+    def __init__(self, output_buffer: Queue[Break], limit, config) -> None:
         self.countries_url = 'https://www.surf-forecast.com/countries'
         self.starting_URL = 'https://pt.surf-forecast.com/countries/Brazil/breaks'
         self.breaks_URLs_queue: list[str] = []
 
         self.output_buffer = output_buffer
+
+        self.config = config
+
+        self.continueFrom = ''
+        finished = self.config.get(b'finished')
+        if finished == b'F':
+            self.continueFrom = self.config.get(b'lastScrappedURL').decode()
 
         self.limit = limit
 
@@ -43,6 +51,14 @@ class Crawler:
             breaks_links = [self.__get_full_url(host, link) for link in country_page_links]
 
             for break_link in breaks_links:
+                # If there is a URL to start from, skip all until this URL is found (and skip it too)
+                if self.continueFrom != '':
+                    if self.continueFrom == break_link:
+                        logger.logger.info(f"Continuing crawling from page {break_link}")
+                        self.continueFrom = ''
+                    count += 1
+                    continue
+
                 break_forecast_link = break_link + '/forecasts/latest/six_day'
                 break_main_page = RequestsHandler.get(break_link)
                 break_forecast_page = RequestsHandler.get(break_forecast_link)

@@ -12,11 +12,16 @@ def main():
     limit, output_file, log_file = int(sys.argv[1]), sys.argv[2], sys.argv[3]
     logger.initLogger(log_file)
 
-    db = plyvel.DB('debug/', create_if_missing=True)
+    db = plyvel.DB('db/', create_if_missing=True)
+    config = plyvel.DB('config', create_if_missing=True)
+    config_is_initialized = config.get((b'finished'))
+    if not config_is_initialized:
+        config.put(b'lastScrappedURL', b'')
+        config.put(b'finished', b'T')
 
     pages_queue = Queue()
-    crawler = Crawler(pages_queue, limit)
-    scrapper = Scrapper(pages_queue, output_file, db)
+    crawler = Crawler(pages_queue, limit, config)
+    scrapper = Scrapper(pages_queue, output_file, db, config)
 
     crawler.crawl()
     scrapper.scrap()

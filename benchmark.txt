@@ -2,3 +2,4 @@ python main.py 1000 output.json log.log  81.50s user 1.20s system 100% cpu 1:22.
 python main.py 1000 output.json log.log  81.87s user 1.21s system 100% cpu 1:22.62 total // no saving
 python main.py 1000 output.json log.log  140.21s user 5.93s system 98% cpu 2:27.83 total // TinyDB
 python main.py 1000 output.json log.log  81.96s user 1.28s system 100% cpu 1:22.74 total // LevelDB
+python main.py 1000 output.json log.log  78.00s user 0.53s system 100% cpu 1:18.28 total // LevelDB with updating

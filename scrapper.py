@@ -13,9 +13,11 @@ state_country_regex = re.compile(r"\(([^,]+),\s*(\w+)\)")
 
 
 class Scrapper:
-    def __init__(self, queue: Queue, output_file_path: str, db):
+    def __init__(self, queue: Queue, output_file_path: str, db, config):
         self.queue = queue
         self.db = db
+        self.config = config
+        self.config.put(b'finished', b'F')
 
     def update_output(self, value):
         key = value['url'].encode()
@@ -26,6 +28,7 @@ class Scrapper:
             value['forecast'] = stored_data['forecast']
 
         self.db.put(key, json.dumps(value).encode())
+        self.config.put(b'lastScrappedURL', key)
 
     def scrap(self):
         while True:
@@ -53,6 +56,8 @@ class Scrapper:
 
             except Exception as e:
                 logger.logger.error(traceback.format_exc())
+
+        self.config.put(b'finished', b'T')
 
     def __scrap_forecast(self, page: BeautifulSoup, break_entry: dict[str]):
         table = page.find('table').find_all('tr')
