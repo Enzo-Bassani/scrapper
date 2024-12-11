@@ -1,7 +1,7 @@
 from dataclasses import dataclass
+from queue import Queue, ShutDown
 from bs4 import BeautifulSoup
 import re
-import json
 from requestsHandler import RequestsHandler
 import threading
 
@@ -17,14 +17,12 @@ class Break:
 
 
 class Crawler:
-    def __init__(self, limit) -> None:
+    def __init__(self, output_buffer: Queue[Break], limit) -> None:
         self.countries_url = 'https://www.surf-forecast.com/countries'
         self.starting_URL = 'https://pt.surf-forecast.com/countries/Brazil/breaks'
         self.breaks_URLs_queue: list[str] = []
 
-        self.breaks_buffer: list[str] = []
-        self.breaks_buffer_lock = threading.Lock()
-        self.breaks_buffer_consumer_semaphore = threading.Semaphore(0)
+        self.output_buffer = output_buffer
 
         self.limit = limit
 
@@ -50,7 +48,7 @@ class Crawler:
                 break_forecast_page = RequestsHandler.get(break_forecast_link)
 
                 page = Break(break_main_page, break_forecast_page, break_link)
-                self.__buffer_append(page)
+                self.output_buffer.put(page)
 
                 count += 1
                 if count == self.limit:
@@ -60,26 +58,13 @@ class Crawler:
         self.__close()
 
     def __close(self):
-        # Free all threads waiting for the crawler.
-        self.breaks_buffer_consumer_semaphore.release(a_lot)
+        self.output_buffer.shutdown()
 
     def __get_full_url(self, host, url):
         return 'https://' + host + url['href']
 
-    def __buffer_append(self, page: Break):
-        with self.breaks_buffer_lock:
-            self.breaks_buffer.append(page)
-
-        # Tell consumer threads that there is content to be consumed.
-        self.breaks_buffer_consumer_semaphore.release()
-
     def pop(self) -> tuple[Break, bool]:
-        # Wait for content to be added to the buffer.
-        self.breaks_buffer_consumer_semaphore.acquire()
-
-        with self.breaks_buffer_lock:
-            if len(self.breaks_buffer) == 0:
-                # If the thread managed to get here and the buffer is empty,
-                # the crawler has stopped producing.
-                return '', True
-            return self.breaks_buffer.pop(), False
+        try:
+            return self.output_buffer.get(), False
+        except ShutDown:
+            return '', True

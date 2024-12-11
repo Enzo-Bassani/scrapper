@@ -3,19 +3,20 @@ from dumpDB import get_db_as_dict
 from scrapper import Scrapper
 import sys
 import logger
-from tinydb import TinyDB, Query
 import plyvel
 import json
+from queue import Queue
 
 
 def main():
     limit, output_file, log_file = int(sys.argv[1]), sys.argv[2], sys.argv[3]
     logger.initLogger(log_file)
 
-    db = plyvel.DB('mydb/', create_if_missing=True)
+    db = plyvel.DB('debug/', create_if_missing=True)
 
-    crawler = Crawler(limit)
-    scrapper = Scrapper(crawler, output_file, db)
+    pages_queue = Queue()
+    crawler = Crawler(pages_queue, limit)
+    scrapper = Scrapper(pages_queue, output_file, db)
 
     crawler.crawl()
     scrapper.scrap()

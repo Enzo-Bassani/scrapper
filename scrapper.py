@@ -5,6 +5,7 @@ import json
 from crawler import Crawler
 import traceback
 import logger
+from queue import Queue, ShutDown
 
 search_rotate_value = re.compile(r"rotate\((\-?\d+(\.\d+)?)\)")
 time_date_regex = re.compile(r"emitido (\d{1,2} \w{2}).*(\d{2} \w{3} \d{4})")
@@ -12,8 +13,8 @@ state_country_regex = re.compile(r"\(([^,]+),\s*(\w+)\)")
 
 
 class Scrapper:
-    def __init__(self, crawler: Crawler, output_file_path: str, db):
-        self.crawler = crawler
+    def __init__(self, queue: Queue, output_file_path: str, db):
+        self.queue = queue
         self.db = db
 
     def update_output(self, value):
@@ -29,8 +30,9 @@ class Scrapper:
     def scrap(self):
         while True:
             try:
-                break_, empty = self.crawler.pop()
-                if empty:
+                try:
+                    break_= self.queue.get()
+                except ShutDown:
                     break
 
                 main_page = BeautifulSoup(break_.main_page, 'html.parser')
