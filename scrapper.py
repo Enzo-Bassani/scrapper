@@ -3,16 +3,12 @@ from bs4 import BeautifulSoup
 import re
 import json
 from crawler import Crawler
-from requestsHandler import RequestsHandler
-import threading
 import traceback
 import logger
-import sys
-import os
-from tinydb import TinyDB
 
 search_rotate_value = re.compile(r"rotate\((\-?\d+(\.\d+)?)\)")
 time_date_regex = re.compile(r"emitido (\d{1,2} \w{2}).*(\d{2} \w{3} \d{4})")
+state_country_regex = re.compile(r"\(([^,]+),\s*(\w+)\)")
 
 
 class Scrapper:
@@ -31,8 +27,6 @@ class Scrapper:
         self.db.put(key, json.dumps(value).encode())
 
     def scrap(self):
-        response = []
-
         while True:
             try:
                 break_, empty = self.crawler.pop()
@@ -54,12 +48,9 @@ class Scrapper:
 
                 self.update_output(entry)
                 logger.logger.info(json.dumps(entry, indent=4))
-                response.append(entry)
 
             except Exception as e:
                 logger.logger.error(traceback.format_exc())
-
-        return response
 
     def __scrap_forecast(self, page: BeautifulSoup, break_entry: dict[str]):
         table = page.find('table').find_all('tr')
@@ -149,7 +140,14 @@ class Scrapper:
         type, rating = table[0].tr.find_all('td')
         reliability, temperature = table[1].tr.find_all('td')
 
+        state_country_text = page.find('h2', class_='h1add tab').text
+        match = state_country_regex.search(state_country_text)
+
+        state, country = match.group(1), match.group(2)
+
         entry['name'] = guide_header.find('h2').find('b').text
+        entry['state'] =  state
+        entry['country'] = country
         entry['type'] = type.text
         entry['rating'] = int(rating.span.text)
         entry['reliability'] = reliability.text
