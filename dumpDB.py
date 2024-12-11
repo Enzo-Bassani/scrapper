@@ -1,7 +1,4 @@
-from crawler import Crawler
-from scrapper import Scrapper
 import sys
-import logger
 import plyvel
 import json
 
