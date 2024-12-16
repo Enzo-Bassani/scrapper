@@ -1,5 +1,8 @@
 __pycache__
 https:
+config
+db
+
 *.html
 *.log
 *.json
