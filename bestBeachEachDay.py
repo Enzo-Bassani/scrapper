@@ -24,5 +24,5 @@ for date in dates:
 headers = ['Date', 'Best Beach', attribute]
 printing_data = []
 for date, beach in zip(dates, best_by_date):
-    printing_data.append([date, beach['name'], beach[attribute]])
+    printing_data.append([date, beach['name'], beach['forecast'][date][attribute]])
 print(tabulate(printing_data, headers, tablefmt="grid"))
