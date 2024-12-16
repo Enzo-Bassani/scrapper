@@ -63,6 +63,11 @@ class Crawler:
                 break_main_page = RequestsHandler.get(break_link)
                 break_forecast_page = RequestsHandler.get(break_forecast_link)
 
+                # If any of the pages could not be retrieved, skip it.
+                if break_main_page is None or break_forecast_page is None:
+                    logger.logger.warning(f"Page {break_link} could not be downloaded, skipping it...")
+                    continue
+
                 page = Break(break_main_page, break_forecast_page, break_link)
                 self.output_buffer.put(page)
 

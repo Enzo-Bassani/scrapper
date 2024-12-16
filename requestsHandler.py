@@ -1,3 +1,4 @@
+from typing import Union
 import requests
 import time
 import threading
@@ -5,6 +6,7 @@ import os
 import logger
 
 initialTime = time.time()
+RETRIES = 5
 
 
 class RequestsHandler:
@@ -44,7 +46,7 @@ class RequestsHandler:
             return file.write(value)
 
     @staticmethod
-    def get(url: str):
+    def get(url: str) -> Union[str, None]:
         """
         Make an HTTP request.
         """
@@ -56,7 +58,14 @@ class RequestsHandler:
         with RequestsHandler.lock:  # Ensure only one thread can make a request at a time
             RequestsHandler.__wait_for_rate_limit()  # Ensure rate limit is respected
             logger.logger.info(f"Getting url {url}\nTime: {time.time() - initialTime}")
-            response = requests.get(url)
+
+            response = None
+            for _ in range(RETRIES):
+                response = requests.get(url)
+                if response.status_code == 200:
+                    break
+            if response.status_code != 200:
+                return None
 
             # Update the time of the last request after the request is made
             RequestsHandler.last_request_time = time.time()
@@ -65,4 +74,4 @@ class RequestsHandler:
 
             RequestsHandler.__update_cache(url, result)
 
-            return result
+        return result

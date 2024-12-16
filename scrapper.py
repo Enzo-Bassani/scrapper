@@ -8,8 +8,9 @@ import logger
 from queue import Queue, ShutDown
 
 search_rotate_value = re.compile(r"rotate\((\-?\d+(\.\d+)?)\)")
-time_date_regex = re.compile(r"emitido (\d{1,2} \w{2}).*(\d{2} \w{3} \d{4})")
-state_country_regex = re.compile(r"\(([^,]+),\s*(\w+)\)")
+time_date_regex = re.compile(r"(?:emitido|issued) (\d{1,2} \w{2}).*(\d{2} \w{3} \d{4})")
+state_country_regex = re.compile(r"\(([^,]+)(?:,\s*(.+))?\)")
+rating_regex = re.compile(r"^star-rating__rating")
 
 
 class Scrapper:
@@ -34,7 +35,7 @@ class Scrapper:
         while True:
             try:
                 try:
-                    break_= self.queue.get()
+                    break_ = self.queue.get()
                 except ShutDown:
                     break
 
@@ -60,7 +61,7 @@ class Scrapper:
         self.config.put(b'finished', b'T')
 
     def __scrap_forecast(self, page: BeautifulSoup, break_entry: dict[str]):
-        table = page.find('table').find_all('tr')
+        table = page.find('table', class_="js-forecast-table-content forecast-table__table forecast-table__table--content")
 
         # Get issued date
         datetime_text = page.find('div', class_='break-header-dynamic__issued').text
@@ -68,27 +69,39 @@ class Scrapper:
         time_str, date_str = datetime_match.group(1), datetime_match.group(2)  # e.g., "08 Dec 2024"
         issued_datetime = datetime.strptime(f"{date_str} {time_str}", "%d %b %Y %I %p")
 
+        # ratings = []
+        # for rating_info in rating_info_by_date:
+        #     if rating_info.div.div is not None:
+        #         ratings.append(rating_info.div.div.text)
+        #         continue
+        #     if
+
         # Time row
-        periods = [period.text for period in page.find('table').find('tr', attrs={"data-row-name": "time"}).find_all('td')]
+        periods = [period.text for period in table.find('tr', attrs={"data-row-name": "time"}).find_all('td')]
         datetimes = []
         curr_datetime = issued_datetime
         for period in periods:
             advance_day = False
             match period:
-                case 'manhã':
+                case 'manhã' | 'AM':
                     curr_datetime = curr_datetime.replace(hour=6)
-                case 'tarde':
+                case 'tarde' | 'PM':
                     curr_datetime = curr_datetime.replace(hour=12)
-                case 'noite':
+                case 'noite' | 'Night':
                     curr_datetime = curr_datetime.replace(hour=18)
                     advance_day = True
+                case _:
+                    raise Exception("Unidentified time")
 
             datetimes.append(curr_datetime.isoformat())
             if advance_day:
                 curr_datetime += timedelta(days=1)
 
+
+        
         # Wave(m) row
-        wave_info_by_date = [wave_info.div for wave_info in table[4].find_all('td')]
+        wave_row = table.find('tr', attrs={"data-row-name": "wave-height"})
+        wave_info_by_date = [wave_info.div for wave_info in wave_row.find_all('td')]
         entries = [{} for _ in range(len(wave_info_by_date))]
         for entry, wave_info in zip(entries, wave_info_by_date):
             if wave_info is None:
@@ -101,19 +114,30 @@ class Scrapper:
                 }
             entry.update(scrapped)
 
+
+        # Avaliação row
+        rating_row = table.find('tr', attrs={"data-row-name": "rating"})
+        ratings_info_by_date = [rating.find('div', class_=rating_regex) for rating in rating_row.find_all('td')]
+        for entry, rating_info in zip(entries, ratings_info_by_date):
+            rating = int(rating_info.text) if rating_info is not None else 0
+            entry['rating'] = rating
+
         # Período (s) row
-        periodo_by_date = table[5].find_all('td')
+        periods_row = table.find('tr', attrs={"data-row-name": "periods"})
+        periodo_by_date = periods_row.find_all('td')
         for entry, periodo in zip(entries, periodo_by_date):
             periodo_text = periodo.text.strip()
             entry['periodo'] = periodo_text if periodo_text == '-' else int(periodo_text)
 
         # Energy. row
-        energy_by_time = [energy.text for energy in table[7].find_all('td')]
+        energy_row = table.find('tr', attrs={"data-row-name": "energy"})
+        energy_by_time = [int(energy.text) for energy in energy_row.find_all('td')]
         for entry, energy in zip(entries, energy_by_time):
-            entry['energy'] = int(energy)
+            entry['energy'] = energy
 
         # Vento(km/h) row
-        wind_by_date = table[8].find_all('td')
+        wind_row = table.find('tr', attrs={"data-row-name": "wind"})
+        wind_by_date = wind_row.find_all('td')
         for entry, wind_info in zip(entries, wind_by_date):
             scrapped = {
                 'wind_degrees': float(search_rotate_value.search(wind_info.div.svg.g['transform']).group(1)),
@@ -122,19 +146,22 @@ class Scrapper:
             entry.update(scrapped)
 
         # Estado do vento row
-        estados_by_time = [estado.text for estado in table[9].find_all('td')]
+        wind_state_row = table.find('tr', attrs={"data-row-name": "wind-state"})
+        estados_by_time = [estado.text for estado in wind_state_row.find_all('td')]
         for entry, estado in zip(entries, estados_by_time):
             entry['wind_state'] = estado
 
         # Temp. row
-        temp_by_time = [temp.text for temp in table[18].find_all('td')]
+        temperature_row = table.find('tr', attrs={"data-row-name": "temperature-high"})
+        temp_by_time = [int(temp.text) for temp in temperature_row.find_all('td')]
         for entry, temp in zip(entries, temp_by_time):
-            entry['temp'] = int(temp)
+            entry['temp'] = temp
 
         # Feels. row
-        feels_by_time = [feels.text for feels in table[19].find_all('td')]
+        feels_row = table.find('tr', attrs={"data-row-name": "feels"})
+        feels_by_time = [int(feels.text) for feels in feels_row.find_all('td')]
         for entry, feels in zip(entries, feels_by_time):
-            entry['feels'] = int(feels)
+            entry['feels'] = feels
 
         break_entry['forecast'] = {}
         for time, forecast_entry in zip(datetimes, entries):
@@ -153,9 +180,9 @@ class Scrapper:
         state, country = match.group(1), match.group(2)
 
         entry['name'] = guide_header.find('h2').find('b').text
-        entry['state'] =  state
+        entry['state'] = state
         entry['country'] = country
         entry['type'] = type.text
-        entry['rating'] = int(rating.span.text)
+        entry['rating'] = float(rating.span.text)
         entry['reliability'] = reliability.text
         entry['temperature'] = float(temperature.div.span.text)
