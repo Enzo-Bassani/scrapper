@@ -20,7 +20,6 @@ class Break:
 class Crawler:
     def __init__(self, output_buffer: Queue[Break], limit, config) -> None:
         self.countries_url = 'https://www.surf-forecast.com/countries'
-        self.starting_URL = 'https://pt.surf-forecast.com/countries/Brazil/breaks'
         self.breaks_URLs_queue: list[str] = []
 
         self.output_buffer = output_buffer
