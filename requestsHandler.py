@@ -10,7 +10,7 @@ RETRIES = 5
 
 
 class RequestsHandler:
-    rate_limit_seconds = 8
+    rate_limit_seconds = 10
     last_request_time = 0.0
     lock = threading.Lock()
 

@@ -185,4 +185,3 @@ class Scrapper:
         entry['type'] = type.text
         entry['rating'] = float(rating.span.text)
         entry['reliability'] = reliability.text
-        entry['temperature'] = float(temperature.div.span.text)

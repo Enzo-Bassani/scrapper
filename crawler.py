@@ -8,7 +8,8 @@ import logger
 
 a_lot = 2**32
 host = 'pt.surf-forecast.com'
-
+countries_regex = re.compile('^/countries/')
+breaks_regex = re.compile('^/breaks/')
 
 @dataclass
 class Break:
@@ -37,16 +38,16 @@ class Crawler:
         threading.Thread(target=self.__crawl).start()
 
     def __crawl(self):
-        starting_page_real = BeautifulSoup(RequestsHandler.get(self.countries_url), 'html.parser')
+        starting_page = BeautifulSoup(RequestsHandler.get(self.countries_url), 'html.parser')
 
-        countries_page_links = starting_page_real.find('table').find_all('a', href=re.compile('^/countries/'))
+        countries_page_links = starting_page.find('table').find_all('a', href=countries_regex)
         countries_links = [self.__get_full_url(host, link) for link in countries_page_links]
 
         count = 0
         for country_link in countries_links:
             country_page = BeautifulSoup(RequestsHandler.get(country_link), 'html.parser')
 
-            country_page_links = country_page.find('table').find_all('a', href=re.compile('^/breaks/'))
+            country_page_links = country_page.find('table').find_all('a', href=breaks_regex)
             breaks_links = [self.__get_full_url(host, link) for link in country_page_links]
 
             for break_link in breaks_links:
