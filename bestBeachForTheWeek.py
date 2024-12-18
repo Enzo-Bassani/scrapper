@@ -41,7 +41,7 @@ class BeachStats:
 state = "Florian\u00f3polis"
 time_from = '2024-12-10T06:00:00'
 time_to = '2024-12-17T18:00:00'
-attribute = 'wave_energy'
+attribute = 'rating'
 stat = 'avg'
 
 

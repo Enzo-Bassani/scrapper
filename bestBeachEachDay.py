@@ -7,7 +7,7 @@ from tabulate import tabulate
 state = "Florian\u00f3polis"
 time_from = '2024-12-10T06:00:00'
 time_to = '2024-12-17T18:00:00'
-attribute = 'rating'
+attribute = 'energy'
 
 with open('output.json', 'r') as f:
     data = json.load(f)
