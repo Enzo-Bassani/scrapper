@@ -69,13 +69,6 @@ class Scrapper:
         time_str, date_str = datetime_match.group(1), datetime_match.group(2)  # e.g., "08 Dec 2024"
         issued_datetime = datetime.strptime(f"{date_str} {time_str}", "%d %b %Y %I %p")
 
-        # ratings = []
-        # for rating_info in rating_info_by_date:
-        #     if rating_info.div.div is not None:
-        #         ratings.append(rating_info.div.div.text)
-        #         continue
-        #     if
-
         # Time row
         periods = [period.text for period in table.find('tr', attrs={"data-row-name": "time"}).find_all('td')]
         datetimes = []

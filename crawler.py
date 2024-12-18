@@ -6,7 +6,6 @@ from requestsHandler import RequestsHandler
 import threading
 import logger
 
-a_lot = 2**32
 host = 'pt.surf-forecast.com'
 countries_regex = re.compile('^/countries/')
 breaks_regex = re.compile('^/breaks/')
